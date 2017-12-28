@@ -34,8 +34,3 @@ scrape_configs:
         port: 8080
         type: A
         refresh_interval: 5s
-alerting:
-    alertmanagers:
-    - static_configs:
-      - targets:
-        - alertmanager:9093
