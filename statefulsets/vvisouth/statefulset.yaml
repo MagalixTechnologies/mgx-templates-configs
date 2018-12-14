@@ -1,0 +1,122 @@
+apiVersion: apps/v1beta2
+kind: StatefulSet
+metadata:
+  name: vvisouth
+  namespace: vvisouth
+spec:
+  replicas: 1
+  servvisoutheName: vvisouth-server
+  selector:
+    matchLabels:
+      app: vvisouth
+  template:
+    metadata:
+      labels:
+        app: vvisouth
+    spec:
+      containers:
+      - command:
+        - /bin/bash
+        - -c
+        - apt-get update; apt-get install -y tzdata; ln -fs /usr/share/zoneinfo/America/Toronto
+          /etc/localtime; dpkg-reconfigure --frontend noninteractive tzdata; apt install
+          -y realmd krb5-user software-properties-common python-software-properties
+          packagekit samba sssd ntp winbind adcli freeipa-client libpam-winbind kstart;
+          cp /usr/share/doc/libpam-winbind/examples/pam_winbind/pam_winbind.conf /etc/security/pam_winbind.conf;
+          rm /etc/ntp.conf; rm /etc/krb5.conf; rm /etc/samba/smb.conf; rm /usr/lib/realmd/realmd-defaults.conf;
+          wget https://raw.githubusercontent.com/MagalixTechnologies/mgx-templates-configs/master/vvisouth/etc/resolv.conf
+          ; wget  https://raw.githubusercontent.com/MagalixTechnologies/mgx-templates-configs/master/vvisouth/etc/ntp.conf;
+          wget  https://raw.githubusercontent.com/MagalixTechnologies/mgx-templates-configs/master/vvisouth/etc/krb5.conf;
+          wget  https://raw.githubusercontent.com/MagalixTechnologies/mgx-templates-configs/master/vvisouth/etc/samba/smb.conf;
+          wget  https://raw.githubusercontent.com/MagalixTechnologies/mgx-templates-configs/master/vvisouth/usr/lib/realmd/realmd-defaults.conf;
+          cat resolv.conf > /etc/resolv.conf; echo '10.150.0.177 VVISOUTHAPP.VVISOUTH.LOCAL'
+          >> /etc/hosts; mv ntp.conf /etc/ntp.conf; mv krb5.conf /etc/krb5.conf; mv
+          smb.conf /etc/samba/smb.conf; mv realmd-defaults.conf /usr/lib/realmd/realmd-defaults.conf;
+          service dbus start; service samba start; service ntp start; service smbd
+          start; service samba-ad-dc start; service winbind start; echo PASSSSSSSSSSSSSSSS|
+          realm join VVISOUTH.LOCAL -U 'medsupport@VVISOUTH.LOCAL' -v&& echo 'krb5_lifetime
+          = 10h' >> /etc/sssd/sssd.conf&& echo 'krb5_renewable_lifetime = 365d' >>
+          /etc/sssd/sssd.conf&& echo 'krb5_renew_interval = 2h' >> /etc/sssd/sssd.conf&&
+          sssd -D&& mkdir -p /var/opt/mssql&& mkdir -p /var/opt/mssql/secrets&& echo
+          PASSSSSSSSSSSSSSSS| kinit medsupport@VVISOUTH.LOCAL && printf
+          "%b" "addent -password -p MSSQLSvc/vvisouth.medstream.magalix.cloud:1433@VVISOUTH.LOCAL
+          -k 2 -e aes256-cts-hmac-sha1-96\nCVfr45tgBN\naddent -password -p MSSQLSvc/vvisouth.medstream.magalix.cloud:1433@VVISOUTH.LOCAL
+          -k 2 -e rc4-hmac\nCVfr45tgBN\nwkt /var/opt/mssql/secrets/mssql.keytab" |
+          ktutil&& printf "%b" "rkt /etc/krb5.keytab\nlist\nwkt /var/opt/mssql/secrets/mssql.keytab"
+          | ktutil&& chmod 400 /var/opt/mssql/secrets/mssql.keytab&& /opt/mssql/bin/mssql-conf
+          set network.kerberoskeytabfile /var/opt/mssql/secrets/mssql.keytab&& echo
+          '' >> /usr/bin/aklog&& chmod 777 /usr/bin/aklog&& kvno MSSQLSvc/vvisouth.medstream.magalix.cloud:1433&&
+          /opt/mssql/bin/mssql-conf set sqlagent.enabled true&& /opt/mssql/bin/sqlservr
+        env:
+        - name: ACCEPT_EULA
+          value: "Y"
+        - name: SA_PASSWORD
+          value: M@dStr@ming2018
+        - name: DEBIAN_FRONTEND
+          value: noninteractive
+        image: microsoft/mssql-server-linux
+        imagePullPolicy: Always
+        name: d7afb5b8-3bea-4f3d-a4cd-551aa6864984
+        ports:
+        - containerPort: 1433
+          name: sql
+          protocol: TCP
+        resources:
+          limits:
+            cpu: "4"
+            memory: 20Gi
+          requests:
+            cpu: "2"
+            memory: 20Gi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/opt/mssql
+          name: vvisouth-vol
+	  initContainers:
+      - args:
+        - $(RECORD_NAME)
+        - $(POD_IP)
+        command:
+        - bash
+        - /start/updatedns.sh
+        env:
+        - name: ROUTE53_DEFAULT_HOSTED_ZONE_NAME
+          value: medstream.magalix.cloud.
+        - name: RECORD_NAME
+          value: vvisouth
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.podIP
+        image: amrfarid/awscli-dns
+        imagePullPolicy: Always
+        name: init
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File		  
+      restartPolicy: Always
+  volumeClaimTemplates:
+    - metadata:
+        name: vvisouth-vol
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 400Gi
+        storageClassName: default
+---
+apiVersion: v1
+kind: Servvisouthe
+metadata:
+  name: vvisouth-server
+spec:
+  clusterIP: None
+  ports:
+  - name: sql
+    port: 1433
+    targetPort: 1433
+  selector:
+    app: vvisouth		
